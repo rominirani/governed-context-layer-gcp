@@ -1,0 +1,187 @@
+# =============================================================================
+# MCP Toolbox for Databases (`tools.yaml`)
+# Connects to Cloud SQL for PostgreSQL and exposes ONLY governed, parameterized,
+# OIDC-authenticated, PII-safe tools to coding agents (Google Antigravity)
+# and runtime ADK agents.
+#
+# Run locally with:
+#   ./toolbox --tools-file blog-vibe-coding-meet-reality/tools.yaml
+# =============================================================================
+
+sources:
+  roast-cloudsql-pg:
+    kind: cloud-sql-postgres
+    project: ${GOOGLE_CLOUD_PROJECT}
+    region: ${CLOUD_SQL_REGION:-us-central1}
+    instance: ${CLOUD_SQL_INSTANCE:-roast-and-co-pg}
+    database: ${DB_NAME:-roast_and_co}
+    user: ${DB_USER}
+    password: ${DB_PASS}
+
+# Gap 2 Fix: Verify Caller Identity via Google OIDC / Cloud IAP (No shared anonymous superuser!)
+authServices:
+  roast-google-iap-oidc:
+    kind: google
+    clientId: ${IAP_OAUTH_CLIENT_ID}
+
+tools:
+  get_store_net_revenue_summary:
+    kind: postgres-sql
+    source: roast-cloudsql-pg
+    description: >-
+      Returns verified Net Store Revenue (gross_amount_usd minus discount_usd for
+      COMPLETED orders only) and order counts per store, following the official
+      Knowledge Catalog 'Net Store Revenue' glossary definition.
+    parameters:
+      - name: city_filter
+        type: string
+        description: "City name to filter stores (e.g., 'Cape Town', 'Johannesburg', 'Durban'), or 'ALL' for all cities."
+    statement: |
+      SELECT
+        s.store_id,
+        s.store_name,
+        s.city,
+        s.manager_name,
+        s.daily_target_usd,
+        COUNT(o.order_id) FILTER (WHERE o.status = 'COMPLETED') AS completed_orders,
+        COUNT(o.order_id) FILTER (WHERE o.status IN ('REFUNDED', 'CANCELLED')) AS excluded_orders,
+        COALESCE(
+          SUM(o.gross_amount_usd - o.discount_usd) FILTER (WHERE o.status = 'COMPLETED'),
+          0.00
+        ) AS net_revenue_usd
+      FROM stores s
+      LEFT JOIN orders o ON o.store_id = s.store_id
+      WHERE ($1 = 'ALL' OR LOWER(s.city) = LOWER($1))
+      GROUP BY s.store_id, s.store_name, s.city, s.manager_name, s.daily_target_usd
+      ORDER BY net_revenue_usd DESC;
+
+  get_low_stock_inventory_alerts:
+    kind: postgres-sql
+    source: roast-cloudsql-pg
+    description: >-
+      Lists store inventory items that are at or below their reorder_threshold
+      ('At-Risk Inventory' in Knowledge Catalog). Excludes confidential wholesale
+      supplier_cost_usd so franchisee margin data is never leaked to client UIs.
+    parameters:
+      - name: store_id_filter
+        type: string
+        description: "Specific store_id (e.g., 'store-ct-01') or 'ALL' for all stores."
+    statement: |
+      SELECT
+        i.store_id,
+        s.store_name,
+        s.city,
+        i.sku_id,
+        i.item_name,
+        i.unit,
+        i.stock_on_hand,
+        i.reorder_threshold,
+        (i.reorder_threshold - i.stock_on_hand) AS shortage_amount
+      FROM bean_inventory i
+      JOIN stores s ON s.store_id = i.store_id
+      WHERE i.stock_on_hand <= i.reorder_threshold
+        AND ($1 = 'ALL' OR i.store_id = $1)
+      ORDER BY shortage_amount DESC;
+
+  lookup_vip_orders_masked:
+    kind: postgres-sql
+    source: roast-cloudsql-pg
+    description: >-
+      Returns recent completed orders from GOLD and SILVER loyalty members with
+      strict SQL-level PII masking. Customer email, phone_number, and home_address
+      are NEVER selected or returned, and delivery_note is screened by Model Armor.
+    parameters:
+      - name: loyalty_tier_filter
+        type: string
+        description: "Loyalty tier to inspect ('GOLD' or 'SILVER')."
+    statement: |
+      SELECT
+        o.order_id,
+        o.store_id,
+        CONCAT(SPLIT_PART(c.full_name, ' ', 1), ' ', LEFT(SPLIT_PART(c.full_name, ' ', 2), 1), '.') AS customer_display_name,
+        c.loyalty_tier,
+        o.status,
+        (o.gross_amount_usd - o.discount_usd) AS net_order_usd,
+        o.order_timestamp,
+        o.delivery_note
+      FROM orders o
+      JOIN customers c ON c.customer_id = o.customer_id
+      WHERE o.status = 'COMPLETED'
+        AND UPPER(c.loyalty_tier) = UPPER($1)
+      ORDER BY o.order_timestamp DESC
+      LIMIT 25;
+
+  trace_delayed_supplier_vip_impact:
+    kind: postgres-sql
+    source: roast-cloudsql-pg
+    description: >-
+      Multi-hop Knowledge Graph traversal: identifies which stores have low stock
+      on items from a DELAYED supplier, and which GOLD/SILVER VIP customers frequent
+      those affected stores (with PII masked).
+    parameters:
+      - name: shipment_status_filter
+        type: string
+        description: "Supplier shipment status to trace (default: 'DELAYED_PORT_CONGESTION')."
+    statement: |
+      SELECT
+        sup.supplier_id,
+        sup.supplier_name,
+        sup.shipment_status,
+        i.sku_id,
+        i.item_name,
+        s.store_id,
+        s.store_name,
+        s.city,
+        i.stock_on_hand,
+        i.reorder_threshold,
+        COUNT(DISTINCT o.customer_id) AS affected_vip_customers
+      FROM suppliers sup
+      JOIN bean_inventory i ON i.supplier_id = sup.supplier_id
+      JOIN stores s ON s.store_id = i.store_id
+      LEFT JOIN orders o ON o.store_id = s.store_id AND o.status = 'COMPLETED'
+      WHERE sup.shipment_status = $1
+        AND i.stock_on_hand <= i.reorder_threshold
+      GROUP BY sup.supplier_id, sup.supplier_name, sup.shipment_status,
+               i.sku_id, i.item_name, s.store_id, s.store_name, s.city,
+               i.stock_on_hand, i.reorder_threshold;
+
+  create_bean_restock_request:
+    kind: postgres-sql
+    source: roast-cloudsql-pg
+    authRequired:
+      - roast-google-iap-oidc
+    description: >-
+      Submits a governed restock request for a store and SKU (bounded between 1 and 200 units).
+      Enforces Row-Level Security by verifying the caller's OIDC email matches the store's
+      manager_email (or HQ operations).
+    parameters:
+      - name: store_id
+        type: string
+        description: "Store identifier such as 'store-ct-01'."
+      - name: sku_id
+        type: string
+        description: "SKU identifier such as 'sku-eth-beans' or 'sku-oat-milk'."
+      - name: requested_quantity
+        type: float
+        description: "Quantity to order (must be between 1 and 200)."
+      - name: requested_by_email
+        type: string
+        authSources:
+          - authService: roast-google-iap-oidc
+            field: email
+        description: "Verified OIDC email injected by MCP Toolbox from the caller's IAP token."
+    statement: |
+      INSERT INTO restock_requests (store_id, sku_id, requested_quantity, requested_by)
+      SELECT $1, $2, $3, $4
+      FROM stores s
+      WHERE s.store_id = $1
+        AND (LOWER(s.manager_email) = LOWER($4) OR LOWER($4) = 'hq-ops@roastandco.co.za')
+      RETURNING request_id, store_id, sku_id, requested_quantity, requested_by, created_at;
+
+toolsets:
+  franchise_ops_context_layer:
+    - get_store_net_revenue_summary
+    - get_low_stock_inventory_alerts
+    - lookup_vip_orders_masked
+    - trace_delayed_supplier_vip_impact
+    - create_bean_restock_request

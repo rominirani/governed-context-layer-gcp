@@ -1,0 +1,26 @@
+{
+  "mcpServers": {
+    "roast-cloudsql-toolbox": {
+      "command": "./toolbox",
+      "args": [
+        "--tools-file",
+        "/path/to/governed-context-layer-gcp/tools.yaml",
+        "--stdio"
+      ],
+      "env": {
+        "GOOGLE_CLOUD_PROJECT": "roast-and-co-prod",
+        "CLOUD_SQL_REGION": "us-central1",
+        "CLOUD_SQL_INSTANCE": "roast-and-co-pg",
+        "DB_NAME": "roast_and_co"
+      }
+    },
+    "roast-local-context-layer": {
+      "command": "uv",
+      "args": [
+        "run",
+        "python",
+        "/path/to/governed-context-layer-gcp/roast_context_mcp_server.py"
+      ]
+    }
+  }
+}
