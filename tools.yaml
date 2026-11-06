@@ -15,7 +15,7 @@ sources:
     region: ${CLOUD_SQL_REGION:-asia-south1}
     instance: ${CLOUD_SQL_INSTANCE:-chai-and-co-pg}
     database: ${DB_NAME:-chai_and_co}
-    user: ${DB_USER}
+    user: ${DB_USER:-postgres}
     password: ${DB_PASS}
 
 # Gap 2 Fix: Verify Caller Identity via Google OIDC / Cloud IAP (No shared anonymous superuser!)
