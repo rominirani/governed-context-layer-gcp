@@ -8,6 +8,8 @@ This repository demonstrates how to build a **3-Layer Governed Semantic, Securit
 
 ## Architecture Overview
 
+![Building a Governed Context Layer for AI Apps on Google Cloud](./governed_context_layer_infographic.jpg)
+
 ```mermaid
 flowchart TD
     App["Layer 3: Vibe-Coded Apps & Agents\n(Single Pane Dashboard & Antigravity)"]
