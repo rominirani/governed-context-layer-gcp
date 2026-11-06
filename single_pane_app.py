@@ -14,12 +14,15 @@ from __future__ import annotations
 
 import ast
 import html
+import json
+import os
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import HTMLResponse
+import httpx
 
 from context_layer_gateway import ContextLayerGateway, RestockRequestPayload
 
@@ -28,7 +31,26 @@ app = FastAPI(
     version="1.0.0",
 )
 
+MCP_TOOLBOX_URL = os.environ.get("MCP_TOOLBOX_URL", "http://127.0.0.1:5000/mcp")
 GATEWAY = ContextLayerGateway()
+
+
+def call_mcp_tool(tool_name: str, arguments: dict[str, Any]) -> list[dict[str, Any]]:
+    """Invoke a governed SQL tool on the MCP Toolbox for Databases HTTP server."""
+    response = httpx.post(
+        MCP_TOOLBOX_URL,
+        json={
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {"name": tool_name, "arguments": arguments},
+        },
+        headers={"Accept": "application/json, text/event-stream"},
+        timeout=10.0,
+    )
+    response.raise_for_status()
+    content = response.json().get("result", {}).get("content", [])
+    return [json.loads(item["text"]) for item in content if "text" in item]
 
 
 @app.middleware("http")
