@@ -10,29 +10,14 @@ This repository demonstrates how to build a **3-Layer Governed Semantic, Securit
 
 ```mermaid
 flowchart TD
-    subgraph L3["Layer 3: Rapid 'Single Pane of Glass' Apps & Agents (Vibe-Coded Safely)"]
-        UI["Morning Franchise Pulse Dashboard\n(FastAPI + HTMX / Antigravity)"]
-        AST["AST Boundary + Agent Registry Verifier\n(Blocks direct DB imports & rogue Shadow IT MCPs)"]
-    end
+    App["Layer 3: Vibe-Coded Apps & Agents\n(Single Pane Dashboard & Antigravity)"]
+    Gate["Layer 2B: Operational Gatekeeper\n(MCP Toolbox for Databases — tools.yaml)"]
+    Catalog["Layer 2A: Semantic Brain\n(Google Cloud Knowledge Catalog)"]
+    DB[("Layer 1: Core Database\n(Cloud SQL for PostgreSQL)")]
 
-    subgraph L2["Layer 2: The Governed Semantic & Operational Context Layer (Built by Engineers)"]
-        MA["Google Cloud Model Armor + Cloud DLP\n(Blocks Prompt Jailbreaks & Scrubs Free-Text PII)"]
-        IAP["Cloud IAP + Cloud Armor\n(OIDC Row-Level Identity + 429 Rate Limiting)"]
-        KC["Google Cloud Knowledge Catalog + BigQuery Graph\n(Context Set + Business Glossary + Property Graph)"]
-        MCP["MCP Toolbox for Databases (tools.yaml)\n(Parameterized Queries + SQL PII Masking + Audit Logs)"]
-    end
-
-    subgraph L1["Layer 1: Core Enterprise Database"]
-        PG[("Cloud SQL for PostgreSQL\n(stores, customers, orders, suppliers, bean_inventory)")]
-    end
-
-    UI -->|"1. Screened by"| MA
-    MA -->|"2. Verified OIDC & Rate Limit"| IAP
-    IAP -->|"3. Calls ONLY named MCP tools"| MCP
-    KC -.->|"Defines official metrics, joins & GQL graph"| MCP
-    KC -.->|"Guides coding agent"| UI
-    MCP -->|"4. Executes locked $1/$2 SQL"| PG
-    AST -->|"Verifies before startup"| UI
+    App -->|"1. Calls ONLY named tools (No raw SQL)"| Gate
+    Catalog -.->|"2. Defines metrics, joins & PII rules"| Gate
+    Gate -->|"3. Runs locked, parameterized SQL"| DB
 ```
 
 ---
