@@ -70,28 +70,53 @@ def get_franchise_single_pane_pulse(
     city: str = Query(default="ALL", max_length=60),
 ) -> dict[str, Any]:
     """Consolidate Store Revenue, Low-Stock Tea Inventory, Masked VIP Activity, and Supply-Chain Blast Radius."""
-    revenues = GATEWAY.get_store_net_revenue_summary(
-        city_filter=city, caller_identity="single-pane-web-ui"
-    )
-    low_stock = GATEWAY.get_low_stock_inventory_alerts(
-        store_id_filter="ALL", caller_identity="single-pane-web-ui"
-    )
-    vip_orders = GATEWAY.lookup_vip_orders_masked(
-        loyalty_tier_filter="GOLD", caller_identity="single-pane-web-ui"
-    )
-    supply_chain_impacts = GATEWAY.trace_delayed_supplier_vip_impact(
-        shipment_status_filter="DELAYED_MONSOON_FREIGHT",
-        caller_identity="single-pane-web-ui",
-    )
-    total_net_rev = sum((item.net_revenue_usd for item in revenues), Decimal("0.00"))
-    return {
-        "city_filter": city,
-        "total_net_revenue_usd": str(total_net_rev),
-        "stores": [item.model_dump(mode="json") for item in revenues],
-        "low_stock_alerts": [item.model_dump(mode="json") for item in low_stock],
-        "recent_gold_vip_orders": [item.model_dump(mode="json") for item in vip_orders],
-        "supply_chain_vip_impacts": [item.model_dump(mode="json") for item in supply_chain_impacts],
-    }
+    try:
+        stores = call_mcp_tool("get_store_net_revenue_summary", {"city_filter": city})
+        low_stock = call_mcp_tool("get_low_stock_inventory_alerts", {"store_id_filter": "ALL"})
+        vip_orders = call_mcp_tool("lookup_vip_orders_masked", {"loyalty_tier_filter": "GOLD"})
+        for order in vip_orders:
+            raw_note = str(order.get("delivery_note", ""))
+            verdict = GATEWAY.model_armor.inspect_and_sanitize(raw_note)
+            order["sanitized_delivery_note"] = verdict.sanitized_text
+        supply_chain_impacts = [
+            item.model_dump(mode="json")
+            for item in GATEWAY.trace_delayed_supplier_vip_impact(
+                shipment_status_filter="DELAYED_MONSOON_FREIGHT",
+                caller_identity="single-pane-web-ui",
+            )
+        ]
+        total_net_rev = sum((Decimal(str(item["net_revenue_usd"])) for item in stores), Decimal("0.00"))
+        return {
+            "city_filter": city,
+            "total_net_revenue_usd": f"{total_net_rev:.2f}",
+            "stores": stores,
+            "low_stock_alerts": low_stock,
+            "recent_gold_vip_orders": vip_orders,
+            "supply_chain_vip_impacts": supply_chain_impacts,
+        }
+    except Exception:
+        revenues = GATEWAY.get_store_net_revenue_summary(
+            city_filter=city, caller_identity="single-pane-web-ui"
+        )
+        low_stock_items = GATEWAY.get_low_stock_inventory_alerts(
+            store_id_filter="ALL", caller_identity="single-pane-web-ui"
+        )
+        vip_order_items = GATEWAY.lookup_vip_orders_masked(
+            loyalty_tier_filter="GOLD", caller_identity="single-pane-web-ui"
+        )
+        supply_chain_impacts = GATEWAY.trace_delayed_supplier_vip_impact(
+            shipment_status_filter="DELAYED_MONSOON_FREIGHT",
+            caller_identity="single-pane-web-ui",
+        )
+        total_net_rev = sum((item.net_revenue_usd for item in revenues), Decimal("0.00"))
+        return {
+            "city_filter": city,
+            "total_net_revenue_usd": str(total_net_rev),
+            "stores": [item.model_dump(mode="json") for item in revenues],
+            "low_stock_alerts": [item.model_dump(mode="json") for item in low_stock_items],
+            "recent_gold_vip_orders": [item.model_dump(mode="json") for item in vip_order_items],
+            "supply_chain_vip_impacts": [item.model_dump(mode="json") for item in supply_chain_impacts],
+        }
 
 
 @app.post("/api/restock", status_code=201)
@@ -144,12 +169,13 @@ def render_single_pane_dashboard(city: str = Query(default="ALL", max_length=60)
 
     vip_items = []
     for v in pulse["recent_gold_vip_orders"]:
+        note = v.get("sanitized_delivery_note") or v.get("delivery_note") or ""
         vip_items.append(
             f"<li>Order <code>{html.escape(str(v['order_id']), quote=True)}</code> — "
             f"{html.escape(str(v['customer_display_name']), quote=True)} "
             f"({html.escape(str(v['loyalty_tier']), quote=True)}): "
             f"${html.escape(str(v['net_order_usd']), quote=True)} "
-            f"<em>(Note: {html.escape(str(v['sanitized_delivery_note']), quote=True)})</em></li>"
+            f"<em>(Note: {html.escape(str(note), quote=True)})</em></li>"
         )
 
     impact_items = []
