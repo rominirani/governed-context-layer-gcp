@@ -84,6 +84,11 @@ gcloud sql databases create chai_and_co \
   --instance="$CLOUD_SQL_INSTANCE" \
   --project="$GOOGLE_CLOUD_PROJECT" \
   --quiet
+
+gcloud sql users set-password postgres \
+  --instance="$CLOUD_SQL_INSTANCE" \
+  --password="your-db-password" \
+  --project="$GOOGLE_CLOUD_PROJECT"
 ```
 
 Open **Cloud SQL Studio** in the Google Cloud Console (`chai-and-co-pg` -> `chai_and_co`), paste the contents of [`sql/01_schema_and_seed.sql`](./sql/01_schema_and_seed.sql), and click **Run**.
@@ -98,7 +103,14 @@ gcloud dataplex entries search "system=CLOUD_SQL chai-and-co-pg" \
 ### 3. Run MCP Toolbox for Databases Locally
 
 ```bash
-npx -y @toolbox-sdk/server@latest --config=tools.yaml --stdio
+export GOOGLE_CLOUD_PROJECT="$(gcloud config get-value project)"
+export CLOUD_SQL_REGION="asia-south1"
+export CLOUD_SQL_INSTANCE="chai-and-co-pg"
+export DB_NAME="chai_and_co"
+export DB_USER="postgres"
+export DB_PASS="your-db-password"
+
+npx -y @toolbox-sdk/server@latest --config=tools.yaml --port=5000
 ```
 
 ---
