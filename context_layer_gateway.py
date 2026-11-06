@@ -222,6 +222,12 @@ class ModelArmorGuard:
 # ---------------------------------------------------------------------------
 
 APPROVED_AGENT_REGISTRY_MCP_SERVERS: dict[str, str] = {
+    "datacloud_knowledge_catalog_remote": (
+        "projects/chai-and-co-prod/locations/global/mcpServers/datacloud_knowledge_catalog_remote"
+    ),
+    "mcp-toolbox-for-databases": (
+        "projects/chai-and-co-prod/locations/global/mcpServers/mcp-toolbox-for-databases"
+    ),
     "chai-cloudsql-toolbox": (
         "projects/chai-and-co-prod/locations/global/mcpServers/chai-cloudsql-toolbox"
     ),

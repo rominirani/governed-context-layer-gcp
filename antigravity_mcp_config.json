@@ -1,26 +1,33 @@
 {
   "mcpServers": {
-    "chai-cloudsql-toolbox": {
-      "command": "./toolbox",
+    "datacloud_knowledge_catalog_remote": {
+      "serverUrl": "https://dataplex.googleapis.com/mcp",
+      "authProviderType": "google_credentials",
+      "headers": {
+        "User-Agent": "datacloud.antigravity"
+      },
+      "oauth": {
+        "scopes": [
+          "https://www.googleapis.com/auth/cloud-platform"
+        ]
+      }
+    },
+    "mcp-toolbox-for-databases": {
+      "command": "npx",
       "args": [
-        "--tools-file",
-        "/path/to/governed-context-layer-gcp/tools.yaml",
+        "-y",
+        "@toolbox-sdk/server@latest",
+        "--config=/absolute/path/to/tools.yaml",
         "--stdio"
       ],
       "env": {
-        "GOOGLE_CLOUD_PROJECT": "chai-and-co-prod",
+        "GOOGLE_CLOUD_PROJECT": "your-gcp-project-id",
         "CLOUD_SQL_REGION": "asia-south1",
         "CLOUD_SQL_INSTANCE": "chai-and-co-pg",
-        "DB_NAME": "chai_and_co"
+        "DB_NAME": "chai_and_co",
+        "DB_USER": "postgres",
+        "DB_PASS": "your-db-password"
       }
-    },
-    "chai-local-context-layer": {
-      "command": "uv",
-      "args": [
-        "run",
-        "python",
-        "/path/to/governed-context-layer-gcp/chai_context_mcp_server.py"
-      ]
     }
   }
 }

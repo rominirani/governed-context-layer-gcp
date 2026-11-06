@@ -1,7 +1,7 @@
 """Runnable MCP Server for Google Antigravity Manager (`chai_context_mcp_server.py`).
 
 Lets you register the Chai & Co. (India Tea Shop) Governed Context Layer directly inside
-Google Antigravity Manager (`~/.gemini/antigravity/mcp_config.json`) and run natural-language
+Google Antigravity (`~/.gemini/config/mcp_config.json`) and run natural-language
 queries against both the Knowledge Catalog Context Set and the governed database tools!
 """
 
