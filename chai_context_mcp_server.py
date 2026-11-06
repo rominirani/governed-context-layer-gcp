@@ -1,8 +1,8 @@
-"""Runnable MCP Server for Google Antigravity Manager (`roast_context_mcp_server.py`).
+"""Runnable MCP Server for Google Antigravity Manager (`chai_context_mcp_server.py`).
 
-Lets you register the Roast & Co. Governed Context Layer directly inside Google
-Antigravity Manager (`~/.gemini/antigravity/mcp_config.json`) and run natural-language
-queries against both the Knowledge Catalog Context Set and the 4 governed database tools!
+Lets you register the Chai & Co. (India Tea Shop) Governed Context Layer directly inside
+Google Antigravity Manager (`~/.gemini/antigravity/mcp_config.json`) and run natural-language
+queries against both the Knowledge Catalog Context Set and the governed database tools!
 """
 
 from __future__ import annotations
@@ -19,13 +19,13 @@ except ImportError:  # pragma: no cover
 from context_layer_gateway import ContextLayerGateway, RestockRequestPayload
 from knowledge_catalog_setup import KnowledgeCatalogConfig, simulate_lookup_context_yaml
 
-mcp = FastMCP("roast-and-co-context-layer")
+mcp = FastMCP("chai-and-co-context-layer")
 _GATEWAY = ContextLayerGateway()
 
 
 @mcp.tool()
-def lookup_roast_context_catalog(project_id: str = "roast-and-co-prod") -> str:
-    """Look up the Google Cloud Knowledge Catalog Context Set YAML for Roast & Co.
+def lookup_chai_context_catalog(project_id: str = "chai-and-co-prod") -> str:
+    """Look up the Google Cloud Knowledge Catalog Context Set YAML for Chai & Co.
 
     Always call this tool first when a user asks how 'Net Store Revenue' or
     'At-Risk Inventory' is defined, or asks about PII governance rules on `customers`.
@@ -39,7 +39,7 @@ def get_store_net_revenue_summary(city_filter: str = "ALL") -> list[dict[str, An
     """Return verified Net Store Revenue (COMPLETED orders minus discounts) per store.
 
     Args:
-        city_filter: City name ('Cape Town', 'Johannesburg', 'Durban') or 'ALL'.
+        city_filter: City name ('Mumbai', 'Bengaluru', 'Delhi') or 'ALL'.
     """
     records = _GATEWAY.get_store_net_revenue_summary(
         city_filter=city_filter, caller_identity="antigravity-manager-mcp"
@@ -49,7 +49,7 @@ def get_store_net_revenue_summary(city_filter: str = "ALL") -> list[dict[str, An
 
 @mcp.tool()
 def get_low_stock_inventory_alerts(store_id_filter: str = "ALL") -> list[dict[str, Any]]:
-    """List store bean & milk inventory items at or below their reorder_threshold.
+    """List store tea leaves & chai spice inventory items at or below their reorder_threshold.
 
     Excludes confidential wholesale `supplier_cost_usd`.
     """
@@ -63,7 +63,8 @@ def get_low_stock_inventory_alerts(store_id_filter: str = "ALL") -> list[dict[st
 def lookup_vip_orders_masked(loyalty_tier_filter: str = "GOLD") -> list[dict[str, Any]]:
     """Return recent COMPLETED orders for GOLD or SILVER loyalty members with PII masked.
 
-    Customer email, phone_number, and home_address are never exposed.
+    Customer email, phone_number, and home_address are never exposed, and delivery_note
+    is sanitized by Google Cloud Model Armor.
     """
     orders = _GATEWAY.lookup_vip_orders_masked(
         loyalty_tier_filter=loyalty_tier_filter, caller_identity="antigravity-manager-mcp"
@@ -72,16 +73,16 @@ def lookup_vip_orders_masked(loyalty_tier_filter: str = "GOLD") -> list[dict[str
 
 
 @mcp.tool()
-def create_bean_restock_request(
+def create_tea_restock_request(
     store_id: str,
     sku_id: str,
     requested_quantity: float,
-    requested_by_email: str = "lindiwe@roastandco.co.za",
+    requested_by_email: str = "priya@chaiandco.in",
 ) -> dict[str, Any]:
-    """Submit a governed bean or milk restock request (bounded between 1 and 200 units).
+    """Submit a governed tea or spice restock request (bounded between 1 and 200 units).
 
     Requires OIDC caller identity (`requested_by_email`) to match `stores.manager_email`
-    or `hq-ops@roastandco.co.za`.
+    or `hq-ops@chaiandco.in`.
     """
     payload = RestockRequestPayload(
         store_id=store_id,
@@ -89,16 +90,16 @@ def create_bean_restock_request(
         requested_quantity=Decimal(str(requested_quantity)),
         requested_by_email=requested_by_email,
     )
-    return _GATEWAY.create_bean_restock_request(
+    return _GATEWAY.create_tea_restock_request(
         payload, caller_identity="antigravity-manager-mcp"
     )
 
 
 @mcp.tool()
 def trace_delayed_supplier_vip_impact(
-    shipment_status_filter: str = "DELAYED_PORT_CONGESTION",
+    shipment_status_filter: str = "DELAYED_MONSOON_FREIGHT",
 ) -> list[dict[str, Any]]:
-    """Trace multi-hop supply-chain blast radius: Delayed Supplier -> Low-Stock SKU -> Store -> GOLD VIP Customers."""
+    """Trace multi-hop supply-chain blast radius: Delayed Supplier -> Low-Stock Tea SKU -> Store -> VIP Customers."""
     records = _GATEWAY.trace_delayed_supplier_vip_impact(
         shipment_status_filter=shipment_status_filter,
         caller_identity="antigravity-manager-mcp",

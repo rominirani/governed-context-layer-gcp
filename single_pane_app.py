@@ -1,4 +1,4 @@
-"""Steps 4 & 5 of the Blog Post: The Single-Pane-of-Glass App + AST Boundary Verifier.
+"""Steps 5 & 6 of the Blog Post: The Single-Pane-of-Glass App + AST Boundary Verifier.
 
 Notice what is NOT in this file:
 - Zero database drivers (`sqlite3`, `psycopg`, `asyncpg`, `sqlalchemy`).
@@ -24,7 +24,7 @@ from fastapi.responses import HTMLResponse
 from context_layer_gateway import ContextLayerGateway, RestockRequestPayload
 
 app = FastAPI(
-    title="Roast & Co. — Morning Franchise Pulse (Single Pane of Glass)",
+    title="Chai & Co. (India Tea Shop) — Morning Franchise Pulse (Single Pane of Glass)",
     version="1.0.0",
 )
 
@@ -47,7 +47,7 @@ async def attach_security_headers(request: Request, call_next: Any) -> Response:
 def get_franchise_single_pane_pulse(
     city: str = Query(default="ALL", max_length=60),
 ) -> dict[str, Any]:
-    """Consolidate Store Revenue, Low-Stock Inventory, Masked VIP Activity, and Supply-Chain Blast Radius."""
+    """Consolidate Store Revenue, Low-Stock Tea Inventory, Masked VIP Activity, and Supply-Chain Blast Radius."""
     revenues = GATEWAY.get_store_net_revenue_summary(
         city_filter=city, caller_identity="single-pane-web-ui"
     )
@@ -58,7 +58,7 @@ def get_franchise_single_pane_pulse(
         loyalty_tier_filter="GOLD", caller_identity="single-pane-web-ui"
     )
     supply_chain_impacts = GATEWAY.trace_delayed_supplier_vip_impact(
-        shipment_status_filter="DELAYED_PORT_CONGESTION",
+        shipment_status_filter="DELAYED_MONSOON_FREIGHT",
         caller_identity="single-pane-web-ui",
     )
     total_net_rev = sum((item.net_revenue_usd for item in revenues), Decimal("0.00"))
@@ -74,9 +74,9 @@ def get_franchise_single_pane_pulse(
 
 @app.post("/api/restock", status_code=201)
 def submit_governed_restock(payload: RestockRequestPayload) -> dict[str, Any]:
-    """Trigger a governed bean/milk restock request through the Context Layer."""
+    """Trigger a governed tea/spice restock request through the Context Layer."""
     try:
-        return GATEWAY.create_bean_restock_request(
+        return GATEWAY.create_tea_restock_request(
             payload, caller_identity="single-pane-web-ui"
         )
     except PermissionError as exc:
@@ -144,11 +144,11 @@ def render_single_pane_dashboard(city: str = Query(default="ALL", max_length=60)
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Roast &amp; Co. — Morning Franchise Pulse</title>
+  <title>Chai &amp; Co. — Morning Franchise Pulse</title>
 </head>
 <body>
   <header>
-    <h1>Roast &amp; Co. — Morning Franchise Pulse (Single Pane of Glass)</h1>
+    <h1>Chai &amp; Co. (India Tea Shop) — Morning Franchise Pulse (Single Pane of Glass)</h1>
     <p>Total Verified Net Store Revenue: <strong>${html.escape(pulse['total_net_revenue_usd'], quote=True)}</strong></p>
   </header>
   <main>
@@ -160,7 +160,7 @@ def render_single_pane_dashboard(city: str = Query(default="ALL", max_length=60)
       </table>
     </section>
     <section id="inventory-section">
-      <h2>2. At-Risk Bean &amp; Milk Inventory Alerts</h2>
+      <h2>2. At-Risk Tea Leaves &amp; Chai Spice Inventory Alerts</h2>
       <ul>{''.join(alert_items)}</ul>
     </section>
     <section id="vip-section">
@@ -177,7 +177,7 @@ def render_single_pane_dashboard(city: str = Query(default="ALL", max_length=60)
 
 
 # ---------------------------------------------------------------------------
-# Step 5: Automated AST Architectural Boundary Verifier
+# Step 6: Automated AST Architectural Boundary Verifier
 # ---------------------------------------------------------------------------
 
 FORBIDDEN_DB_IMPORTS = {

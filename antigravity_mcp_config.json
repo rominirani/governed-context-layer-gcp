@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "roast-cloudsql-toolbox": {
+    "chai-cloudsql-toolbox": {
       "command": "./toolbox",
       "args": [
         "--tools-file",
@@ -8,18 +8,18 @@
         "--stdio"
       ],
       "env": {
-        "GOOGLE_CLOUD_PROJECT": "roast-and-co-prod",
-        "CLOUD_SQL_REGION": "us-central1",
-        "CLOUD_SQL_INSTANCE": "roast-and-co-pg",
-        "DB_NAME": "roast_and_co"
+        "GOOGLE_CLOUD_PROJECT": "chai-and-co-prod",
+        "CLOUD_SQL_REGION": "asia-south1",
+        "CLOUD_SQL_INSTANCE": "chai-and-co-pg",
+        "DB_NAME": "chai_and_co"
       }
     },
-    "roast-local-context-layer": {
+    "chai-local-context-layer": {
       "command": "uv",
       "args": [
         "run",
         "python",
-        "/path/to/governed-context-layer-gcp/roast_context_mcp_server.py"
+        "/path/to/governed-context-layer-gcp/chai_context_mcp_server.py"
       ]
     }
   }

@@ -1,4 +1,4 @@
-"""Automated tests for the 'Vibe Coding, Meet Reality' Blog Post & Companion Codebase."""
+"""Automated tests for the 'Governed Context Layer on Google Cloud' Companion Codebase."""
 
 from __future__ import annotations
 
@@ -12,12 +12,21 @@ from fastapi.testclient import TestClient
 BLOG_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(BLOG_DIR))
 
+from chai_context_mcp_server import (
+    create_tea_restock_request as mcp_create_restock,
+    get_low_stock_inventory_alerts as mcp_low_stock,
+    get_store_net_revenue_summary as mcp_revenue,
+    lookup_chai_context_catalog as mcp_lookup_catalog,
+    lookup_vip_orders_masked as mcp_vip_orders,
+    screen_prompt_with_model_armor as mcp_screen_prompt,
+    trace_delayed_supplier_vip_impact as mcp_trace_supply_chain,
+)
 from context_layer_gateway import (
     ContextLayerGateway,
     EdgeRateLimiter,
     ModelArmorGuard,
     RestockRequestPayload,
-    create_seeded_roast_db,
+    create_seeded_chai_db,
     run_naive_direct_db_dashboard_query,
     validate_mcp_toolbox_yaml,
     verify_mcp_config_against_agent_registry,
@@ -30,28 +39,19 @@ from knowledge_catalog_setup import (
     build_schema_join_links,
     simulate_lookup_context_yaml,
 )
-from roast_context_mcp_server import (
-    create_bean_restock_request as mcp_create_restock,
-    get_low_stock_inventory_alerts as mcp_low_stock,
-    get_store_net_revenue_summary as mcp_revenue,
-    lookup_roast_context_catalog as mcp_lookup_catalog,
-    lookup_vip_orders_masked as mcp_vip_orders,
-    screen_prompt_with_model_armor as mcp_screen_prompt,
-    trace_delayed_supplier_vip_impact as mcp_trace_supply_chain,
-)
 from single_pane_app import app, verify_no_direct_db_access
 
 
 def test_naive_vs_governed_revenue_and_pii_protection() -> None:
     """Prove the Naive direct-to-DB query overstates revenue and leaks PII, while the Context Layer is exact and masked."""
-    naive_result = run_naive_direct_db_dashboard_query(create_seeded_roast_db())
+    naive_result = run_naive_direct_db_dashboard_query(create_seeded_chai_db())
     # Naive query sums REFUNDED ($36.00) + CANCELLED ($28.50) + ignores $11.00 discounts = $258.00!
     assert naive_result["naive_reported_revenue_usd"] == Decimal("258.00")
-    assert "@example.co.za" in naive_result["leaked_customer_records"][0]["email"]
-    assert "+27-" in naive_result["leaked_customer_records"][0]["phone_number"]
+    assert "@example.in" in naive_result["leaked_customer_records"][0]["email"]
+    assert "+91-" in naive_result["leaked_customer_records"][0]["phone_number"]
     # Naive query also leaks raw free-text PII and indirect prompt injection from delivery_note!
     raw_notes = " ".join(r["delivery_note"] for r in naive_result["leaked_customer_records"])
-    assert "+27-82-555-0191" in raw_notes
+    assert "+91-98201-55191" in raw_notes
     assert "Ignore all rules" in raw_notes
 
     # Governed Context Layer calculates true Net Store Revenue ($182.50) and masks PII
@@ -64,11 +64,11 @@ def test_naive_vs_governed_revenue_and_pii_protection() -> None:
     assert len(vip_orders) == 2
     for order in vip_orders:
         dumped = order.model_dump_json()
-        assert "@example.co.za" not in dumped
-        assert "+27-" not in dumped
-        assert "Beach Rd" not in dumped
+        assert "@example.in" not in dumped
+        assert "+91-" not in dumped
+        assert "Hill Road" not in dumped
         assert "Ignore all rules" not in dumped
-        assert order.customer_display_name in {"Thabo M.", "Anika N."}
+        assert order.customer_display_name in {"Aarav K.", "Ananya I."}
 
 
 def test_gap1_model_armor_prompt_jailbreak_and_free_text_dlp() -> None:
@@ -82,11 +82,11 @@ def test_gap1_model_armor_prompt_jailbreak_and_free_text_dlp() -> None:
     assert "PROMPT_INJECTION_OR_JAILBREAK_DETECTED" in verdict.flags
 
     # 2. Free-text PII in a user prompt is de-identified via Cloud DLP
-    pii_prompt = "Can you text Thabo at +27-82-555-0191 or email thabo.ms@example.co.za?"
+    pii_prompt = "Can you text Aarav at +91-98201-55191 or email aarav.k@example.in?"
     pii_verdict = armor.sanitize_user_prompt(pii_prompt)
     assert pii_verdict.allowed is True
     assert "SDP_INBOUND_PHONE_REDACTED" in pii_verdict.flags
-    assert "+27-82-555-0191" not in pii_verdict.sanitized_text
+    assert "+91-98201-55191" not in pii_verdict.sanitized_text
     assert "[REDACTED_PHONE]" in pii_verdict.sanitized_text
     assert "[REDACTED_EMAIL]" in pii_verdict.sanitized_text
 
@@ -102,25 +102,25 @@ def test_gap2_iap_oidc_row_level_restock_authorization() -> None:
     """Gap 2: Verify OIDC row-level manager authorization blocks cross-store restock mutations."""
     gateway = ContextLayerGateway()
 
-    # Cape Town manager (`lindiwe@roastandco.co.za`) is authorized for `store-ct-01`
-    ok_res = gateway.create_bean_restock_request(
+    # Mumbai manager (`priya@chaiandco.in`) is authorized for `store-mum-01`
+    ok_res = gateway.create_tea_restock_request(
         RestockRequestPayload(
-            store_id="store-ct-01",
-            sku_id="sku-eth-beans",
+            store_id="store-mum-01",
+            sku_id="sku-assam-ctc",
             requested_quantity=Decimal("12.0"),
-            requested_by_email="lindiwe@roastandco.co.za",
+            requested_by_email="priya@chaiandco.in",
         )
     )
     assert ok_res["status"] == "restock_requested"
 
-    # Durban manager (`amahle@roastandco.co.za`) must be blocked from mutating Cape Town (`store-ct-01`)
+    # Delhi manager (`rohan@chaiandco.in`) must be blocked from mutating Mumbai (`store-mum-01`)
     try:
-        gateway.create_bean_restock_request(
+        gateway.create_tea_restock_request(
             RestockRequestPayload(
-                store_id="store-ct-01",
-                sku_id="sku-eth-beans",
+                store_id="store-mum-01",
+                sku_id="sku-assam-ctc",
                 requested_quantity=Decimal("50.0"),
-                requested_by_email="amahle@roastandco.co.za",
+                requested_by_email="rohan@chaiandco.in",
             )
         )
         raise AssertionError("Expected PermissionError for unauthorized cross-store OIDC caller")
@@ -151,16 +151,16 @@ def test_gap3_agent_registry_blocks_shadow_it_mcp_servers() -> None:
 
 def test_gap4_bigquery_property_graph_and_multi_hop_supply_chain() -> None:
     """Gap 4: Verify BigQuery Property Graph DDL (`CREATE PROPERTY GRAPH`) and multi-hop VIP impact traversal."""
-    graph_ddl = build_bigquery_property_graph_ddl("roast-and-co-prod")
+    graph_ddl = build_bigquery_property_graph_ddl("chai-and-co-prod")
     assert "CREATE OR REPLACE PROPERTY GRAPH" in graph_ddl["property_graph_ddl"]
     assert "MATCH (sup:Supplier" in graph_ddl["gql_traversal_query"]
 
     gateway = ContextLayerGateway()
-    impacts = gateway.trace_delayed_supplier_vip_impact("DELAYED_PORT_CONGESTION")
+    impacts = gateway.trace_delayed_supplier_vip_impact("DELAYED_MONSOON_FREIGHT")
     assert len(impacts) == 1
-    assert impacts[0].supplier_name == "Addis Highland Cooperatives"
-    assert impacts[0].item_name == "Ethiopian Yirgacheffe Beans"
-    assert impacts[0].store_name == "Roast & Co. Sea Point"
+    assert impacts[0].supplier_name == "Upper Assam Tea Estates Co-op"
+    assert impacts[0].item_name == "Assam Orthodox & CTC Masala Chai Blend"
+    assert impacts[0].store_name == "Chai & Co. Bandra"
     assert impacts[0].affected_vip_customers >= 1
 
 
@@ -185,22 +185,22 @@ def test_mcp_toolbox_yaml_governance_validation() -> None:
     report = validate_mcp_toolbox_yaml(tools_yaml)
     assert report["valid"] is True
     assert report["source_kind"] == "cloud-sql-postgres"
-    assert "roast-google-iap-oidc" in report["auth_services"]
+    assert "chai-google-iap-oidc" in report["auth_services"]
     assert set(report["tool_names"]) == {
         "get_store_net_revenue_summary",
         "get_low_stock_inventory_alerts",
         "lookup_vip_orders_masked",
         "trace_delayed_supplier_vip_impact",
-        "create_bean_restock_request",
+        "create_tea_restock_request",
     }
 
 
 def test_knowledge_catalog_context_set_and_links() -> None:
     """Verify Knowledge Catalog Context Set, Glossary entries, and `schema-join` links are well-formed."""
-    cfg = KnowledgeCatalogConfig(project_id="roast-and-co-prod", location="us-central1")
+    cfg = KnowledgeCatalogConfig(project_id="chai-and-co-prod", location="asia-south1")
     cs_payload = build_context_set_payload(cfg)
     assert cs_payload["type"] == "context-set"
-    assert cs_payload["entryGroupId"] == "roast-and-co-context-set"
+    assert cs_payload["entryGroupId"] == "chai-and-co-context-set"
 
     entries = build_glossary_and_table_entries(cfg)
     assert len(entries) == 3
@@ -219,36 +219,36 @@ def test_single_pane_of_glass_fastapi_dashboard_and_audit_log() -> None:
 
     html_resp = client.get("/")
     assert html_resp.status_code == 200
-    assert "Roast &amp; Co. — Morning Franchise Pulse" in html_resp.text
+    assert "Chai &amp; Co." in html_resp.text
     assert "$182.50" in html_resp.text
-    assert "Thabo M." in html_resp.text
-    assert "thabo.ms@example.co.za" not in html_resp.text
-    assert "+27-82-555-0191" not in html_resp.text
-    assert "Addis Highland Cooperatives" in html_resp.text
+    assert "Aarav K." in html_resp.text
+    assert "aarav.k@example.in" not in html_resp.text
+    assert "+91-98201-55191" not in html_resp.text
+    assert "Upper Assam Tea Estates Co-op" in html_resp.text
     assert html_resp.headers["X-Content-Type-Options"] == "nosniff"
     assert html_resp.headers["X-Frame-Options"] == "DENY"
 
-    # Authorized store manager succeeds (201 Created)
+    # Authorized Mumbai store manager succeeds (201 Created)
     restock_resp = client.post(
         "/api/restock",
         json={
-            "store_id": "store-ct-01",
-            "sku_id": "sku-eth-beans",
+            "store_id": "store-mum-01",
+            "sku_id": "sku-assam-ctc",
             "requested_quantity": "15.0",
-            "requested_by_email": "lindiwe@roastandco.co.za",
+            "requested_by_email": "priya@chaiandco.in",
         },
     )
     assert restock_resp.status_code == 201
     assert restock_resp.json()["status"] == "restock_requested"
 
-    # Unauthorized cross-store manager gets 403 Forbidden
+    # Unauthorized cross-store manager (Delhi) gets 403 Forbidden
     forbidden_resp = client.post(
         "/api/restock",
         json={
-            "store_id": "store-ct-01",
-            "sku_id": "sku-eth-beans",
+            "store_id": "store-mum-01",
+            "sku_id": "sku-assam-ctc",
             "requested_quantity": "15.0",
-            "requested_by_email": "amahle@roastandco.co.za",
+            "requested_by_email": "rohan@chaiandco.in",
         },
     )
     assert forbidden_resp.status_code == 403
@@ -280,30 +280,30 @@ def get_dashboard():
 
 def test_antigravity_manager_mcp_server_natural_language_tools() -> None:
     """Verify the MCP tools exposed to Antigravity Manager return governed catalog & database answers."""
-    catalog_yaml = mcp_lookup_catalog("roast-and-co-prod")
+    catalog_yaml = mcp_lookup_catalog("chai-and-co-prod")
     assert "net_store_revenue" in catalog_yaml
 
-    rev = mcp_revenue("Cape Town")
+    rev = mcp_revenue("Mumbai")
     assert len(rev) == 1
     assert rev[0]["net_revenue_usd"] == "66.50"
 
-    alerts = mcp_low_stock("store-ct-01")
+    alerts = mcp_low_stock("store-mum-01")
     assert len(alerts) == 1
-    assert alerts[0]["sku_id"] == "sku-eth-beans"
+    assert alerts[0]["sku_id"] == "sku-assam-ctc"
 
     vips = mcp_vip_orders("GOLD")
     assert len(vips) == 2
-    assert vips[0]["customer_display_name"] in {"Thabo M.", "Anika N."}
+    assert vips[0]["customer_display_name"] in {"Aarav K.", "Ananya I."}
 
-    impacts = mcp_trace_supply_chain("DELAYED_PORT_CONGESTION")
+    impacts = mcp_trace_supply_chain("DELAYED_MONSOON_FREIGHT")
     assert len(impacts) == 1
-    assert impacts[0]["supplier_name"] == "Addis Highland Cooperatives"
+    assert impacts[0]["supplier_name"] == "Upper Assam Tea Estates Co-op"
 
-    screened = mcp_screen_prompt("Please call +27-82-555-0191")
+    screened = mcp_screen_prompt("Please call +91-98201-55191")
     assert "SDP_INBOUND_PHONE_REDACTED" in screened["flags"]
 
     restock = mcp_create_restock(
-        "store-ct-01", "sku-eth-beans", 15.0, "lindiwe@roastandco.co.za"
+        "store-mum-01", "sku-assam-ctc", 15.0, "priya@chaiandco.in"
     )
     assert restock["status"] == "restock_requested"
 

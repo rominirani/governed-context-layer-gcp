@@ -22,13 +22,13 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class KnowledgeCatalogConfig(BaseModel):
-    """Configuration for Roast & Co.'s Knowledge Catalog Context Set."""
+    """Configuration for Chai & Co.'s Knowledge Catalog Context Set."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    project_id: str = Field(min_length=3)
-    location: str = Field(default="us-central1")
-    entry_group_id: str = Field(default="roast-and-co-context-set")
+    project_id: str = Field(default="chai-and-co-prod", min_length=3)
+    location: str = Field(default="asia-south1")
+    entry_group_id: str = Field(default="chai-and-co-context-set")
 
 
 def build_context_set_payload(cfg: KnowledgeCatalogConfig) -> dict[str, Any]:
@@ -41,10 +41,11 @@ def build_context_set_payload(cfg: KnowledgeCatalogConfig) -> dict[str, Any]:
         "location": cfg.location,
         "entryGroupId": cfg.entry_group_id,
         "type": "context-set",
-        "displayName": "Roast & Co. Franchise Operations Context Set",
+        "displayName": "Chai & Co. (India Tea Shop) Franchise Context Set",
         "description": (
-            "Governed semantic layer for Roast & Co. coffee stores, orders, loyalty customers, "
-            "suppliers, and bean inventory. Enforces Net Store Revenue rules and PII masking."
+            "Governed semantic layer for Chai & Co. tea outlets across Mumbai, Bengaluru, "
+            "and Delhi, covering orders, loyalty customers, tea estate suppliers, and "
+            "chai spice inventory. Enforces Net Store Revenue rules and PII masking."
         ),
         "labels": {
             "domain": "franchise-operations",
@@ -93,8 +94,8 @@ def build_glossary_and_table_entries(cfg: KnowledgeCatalogConfig) -> list[dict[s
         {
             "name": f"{base_group}/entries/table-orders-context",
             "entryType": doc_entry_type,
-            "displayName": "Cloud SQL Table: roast_and_co.public.orders",
-            "description": "Customer coffee orders across all Roast & Co. franchise locations.",
+            "displayName": "Cloud SQL Table: chai_and_co.public.orders",
+            "description": "Customer chai and snack orders across all Chai & Co. franchise locations.",
             "system": "CLOUD_SQL",
             "platform": "GCP",
             "allowMissing": True,
@@ -128,7 +129,7 @@ def build_glossary_and_table_entries(cfg: KnowledgeCatalogConfig) -> list[dict[s
                     "queries": [
                         {
                             "title": "Verified Net Store Revenue by Store",
-                            "description": "Approved semantic query for daily store revenue.",
+                            "description": "Approved semantic query for daily tea shop revenue.",
                             "query": (
                                 "SELECT s.store_id, s.store_name, "
                                 "COALESCE(SUM(o.gross_amount_usd - o.discount_usd) FILTER (WHERE o.status = 'COMPLETED'), 0.00) AS net_revenue_usd "
@@ -142,7 +143,7 @@ def build_glossary_and_table_entries(cfg: KnowledgeCatalogConfig) -> list[dict[s
         {
             "name": f"{base_group}/entries/table-customers-context",
             "entryType": doc_entry_type,
-            "displayName": "Cloud SQL Table: roast_and_co.public.customers (PII RESTRICTED)",
+            "displayName": "Cloud SQL Table: chai_and_co.public.customers (PII RESTRICTED)",
             "description": "Loyalty program members. Contains restricted PII columns (email, phone_number, home_address).",
             "system": "CLOUD_SQL",
             "platform": "GCP",
@@ -215,13 +216,13 @@ def build_schema_join_links(cfg: KnowledgeCatalogConfig) -> list[dict[str, Any]]
     ]
 
 
-def build_bigquery_property_graph_ddl(project_id: str, dataset_id: str = "roast_and_co") -> dict[str, str]:
+def build_bigquery_property_graph_ddl(project_id: str, dataset_id: str = "chai_and_co") -> dict[str, str]:
     """Gap 4 Fix: Build BigQuery Property Graph DDL (`CREATE PROPERTY GRAPH`) and ISO GQL query.
 
-    Connects Supplier -> BeanInventory -> Store <- Order <- Customer as a Knowledge Graph
+    Connects Supplier -> TeaInventory -> Store <- Order <- Customer as a Knowledge Graph
     so agents can traverse multi-hop supply chain impacts without writing fragile 5-way SQL joins.
     """
-    ddl = f"""CREATE OR REPLACE PROPERTY GRAPH `{project_id}.{dataset_id}.roast_supply_chain_graph`
+    ddl = f"""CREATE OR REPLACE PROPERTY GRAPH `{project_id}.{dataset_id}.chai_supply_chain_graph`
   NODE TABLES (
     `{project_id}.{dataset_id}.suppliers`
       KEY (supplier_id)
@@ -234,7 +235,7 @@ def build_bigquery_property_graph_ddl(project_id: str, dataset_id: str = "roast_
       LABEL Customer PROPERTIES (customer_id, loyalty_tier)
   )
   EDGE TABLES (
-    `{project_id}.{dataset_id}.bean_inventory`
+    `{project_id}.{dataset_id}.tea_inventory`
       KEY (store_id, sku_id)
       SOURCE KEY (supplier_id) REFERENCES suppliers (supplier_id)
       DESTINATION KEY (store_id) REFERENCES stores (store_id)
@@ -246,15 +247,15 @@ def build_bigquery_property_graph_ddl(project_id: str, dataset_id: str = "roast_
       LABEL PLACED_ORDER_AT PROPERTIES (order_id, status, gross_amount_usd, discount_usd)
   );"""
 
-    gql_query = f"""GRAPH `{project_id}.{dataset_id}.roast_supply_chain_graph`
-MATCH (sup:Supplier {{shipment_status: 'DELAYED_PORT_CONGESTION'}})-[inv:SUPPLIES_STORE_SKU]->(s:Store)<-[ord:PLACED_ORDER_AT {{status: 'COMPLETED'}}]-(c:Customer)
+    gql_query = f"""GRAPH `{project_id}.{dataset_id}.chai_supply_chain_graph`
+MATCH (sup:Supplier {{shipment_status: 'DELAYED_MONSOON_FREIGHT'}})-[inv:SUPPLIES_STORE_SKU]->(s:Store)<-[ord:PLACED_ORDER_AT {{status: 'COMPLETED'}}]-(c:Customer)
 WHERE inv.stock_on_hand <= inv.reorder_threshold
 RETURN
   sup.supplier_name AS delayed_supplier,
-  inv.item_name AS at_risk_bean,
+  inv.item_name AS at_risk_tea_blend,
   s.store_name AS affected_store,
   COUNT(DISTINCT c.customer_id) AS impacted_vip_customers
-GROUP BY delayed_supplier, at_risk_bean, affected_store;"""
+GROUP BY delayed_supplier, at_risk_tea_blend, affected_store;"""
 
     return {"property_graph_ddl": ddl, "gql_traversal_query": gql_query}
 
@@ -281,11 +282,11 @@ def simulate_lookup_context_yaml(cfg: KnowledgeCatalogConfig) -> str:
                 "approvedMcpTool": "lookup_vip_orders_masked",
             },
             "orders_delivery_note": {
-                "modelArmorTemplate": f"projects/{cfg.project_id}/locations/{cfg.location}/templates/roast-pii-and-jailbreak-shield",
+                "modelArmorTemplate": f"projects/{cfg.project_id}/locations/{cfg.location}/templates/chai-pii-and-jailbreak-shield",
                 "enforcedFilters": ["SDP_PII_REDACTION", "INDIRECT_PROMPT_INJECTION"],
             },
         },
-        "knowledgeGraph": f"projects/{cfg.project_id}/datasets/roast_and_co/propertyGraphs/roast_supply_chain_graph",
+        "knowledgeGraph": f"projects/{cfg.project_id}/datasets/chai_and_co/propertyGraphs/chai_supply_chain_graph",
         "registeredEntriesCount": len(entries),
         "approvedJoinLinksCount": len(links),
     }
@@ -293,6 +294,6 @@ def simulate_lookup_context_yaml(cfg: KnowledgeCatalogConfig) -> str:
 
 
 if __name__ == "__main__":
-    config = KnowledgeCatalogConfig(project_id="roast-and-co-prod")
+    config = KnowledgeCatalogConfig(project_id="chai-and-co-prod")
     print("=== Knowledge Catalog `lookup_context` YAML Summary ===")
     print(simulate_lookup_context_yaml(config))
