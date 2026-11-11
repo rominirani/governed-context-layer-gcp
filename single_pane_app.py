@@ -53,6 +53,12 @@ def call_mcp_tool(tool_name: str, arguments: dict[str, Any]) -> list[dict[str, A
     return [json.loads(item["text"]) for item in content if "text" in item]
 
 
+def sanitize_delivery_note(raw_note: str) -> str:
+    """Screen free-text `delivery_note` via Google Cloud Model Armor + Sensitive Data Protection."""
+    verdict = GATEWAY.model_armor.sanitize_free_text_db_field(raw_note)
+    return verdict.sanitized_text
+
+
 @app.middleware("http")
 async def attach_security_headers(request: Request, call_next: Any) -> Response:
     """Attach mandatory security headers to every HTTP response."""
@@ -76,8 +82,7 @@ def get_franchise_single_pane_pulse(
         vip_orders = call_mcp_tool("lookup_vip_orders_masked", {"loyalty_tier_filter": "GOLD"})
         for order in vip_orders:
             raw_note = str(order.get("delivery_note", ""))
-            verdict = GATEWAY.model_armor.inspect_and_sanitize(raw_note)
-            order["sanitized_delivery_note"] = verdict.sanitized_text
+            order["sanitized_delivery_note"] = sanitize_delivery_note(raw_note)
         supply_chain_impacts = [
             item.model_dump(mode="json")
             for item in GATEWAY.trace_delayed_supplier_vip_impact(

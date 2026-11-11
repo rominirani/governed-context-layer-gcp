@@ -216,6 +216,9 @@ class ModelArmorGuard:
 
         return ModelArmorSanitizeResult(allowed=True, sanitized_text=cleaned, flags=flags)
 
+    # Alias used by Single-Pane-of-Glass dashboard
+    inspect_and_sanitize = sanitize_free_text_db_field
+
 
 # ---------------------------------------------------------------------------
 # 3. Gap 3 Fix: Anti-Shadow-IT Verification via Google Cloud Agent Registry

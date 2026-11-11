@@ -12,17 +12,17 @@ sources:
   chai-cloudsql-pg:
     kind: cloud-sql-postgres
     project: ${GOOGLE_CLOUD_PROJECT}
-    region: ${CLOUD_SQL_REGION:-asia-south1}
-    instance: ${CLOUD_SQL_INSTANCE:-chai-and-co-pg}
-    database: ${DB_NAME:-chai_and_co}
-    user: ${DB_USER:-postgres}
+    region: ${CLOUD_SQL_REGION:asia-south1}
+    instance: ${CLOUD_SQL_INSTANCE:chai-and-co-pg}
+    database: ${DB_NAME:chai_and_co}
+    user: ${DB_USER:postgres}
     password: ${DB_PASS}
 
 # Gap 2 Fix: Verify Caller Identity via Google OIDC / Cloud IAP (No shared anonymous superuser!)
 authServices:
   chai-google-iap-oidc:
-    kind: google-oidc
-    audience: "https://pulse.chaiandco.in"
+    kind: google
+    clientId: "https://pulse.chaiandco.in"
 
 tools:
   get_store_net_revenue_summary:
